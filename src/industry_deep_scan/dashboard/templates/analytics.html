@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - Industry Deep Scan{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="md:flex md:items-center md:justify-between">
+        <div class="min-w-0 flex-1">
+            <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl">
+                Analytics
+            </h2>
+            <p class="mt-1 text-sm text-gray-500">Performance metrics and pipeline analysis</p>
+        </div>
+        <div class="mt-4 flex gap-2 md:ml-4 md:mt-0">
+            <a href="?days=7" class="inline-flex items-center rounded-md px-3 py-2 text-sm font-semibold {% if days == 7 %}bg-indigo-600 text-white{% else %}bg-white text-gray-900 ring-1 ring-gray-300{% endif %}">7 Days</a>
+            <a href="?days=30" class="inline-flex items-center rounded-md px-3 py-2 text-sm font-semibold {% if days == 30 %}bg-indigo-600 text-white{% else %}bg-white text-gray-900 ring-1 ring-gray-300{% endif %}">30 Days</a>
+            <a href="?days=90" class="inline-flex items-center rounded-md px-3 py-2 text-sm font-semibold {% if days == 90 %}bg-indigo-600 text-white{% else %}bg-white text-gray-900 ring-1 ring-gray-300{% endif %}">90 Days</a>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+            <dt class="truncate text-sm font-medium text-gray-500">Total Signals</dt>
+            <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ stats.total or 0 }}</dd>
+            <p class="text-xs text-gray-400 mt-1">Last {{ days }} days</p>
+        </div>
+        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+            <dt class="truncate text-sm font-medium text-gray-500">Critical Signals</dt>
+            <dd class="mt-1 text-3xl font-semibold tracking-tight text-red-600">
+                {{ stats.by_priority.get('critical', stats.by_priority.get('<SignalPriority.CRITICAL: \'critical\'>', 0)) if stats.by_priority else 0 }}
+            </dd>
+            <p class="text-xs text-gray-400 mt-1">Highest priority</p>
+        </div>
+        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+            <dt class="truncate text-sm font-medium text-gray-500">New Leads</dt>
+            <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ pipeline.get('new', 0) }}</dd>
+            <p class="text-xs text-gray-400 mt-1">Uncontacted</p>
+        </div>
+        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+            <dt class="truncate text-sm font-medium text-gray-500">Funded</dt>
+            <dd class="mt-1 text-3xl font-semibold tracking-tight text-green-600">{{ pipeline.get('funded', 0) }}</dd>
+            <p class="text-xs text-gray-400 mt-1">Closed deals</p>
+        </div>
+    </div>
+
+    <!-- Pipeline Funnel -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-filter text-indigo-500 mr-2"></i>
+                Lead Pipeline
+            </h3>
+        </div>
+        <div class="p-6">
+            <div class="space-y-4">
+                {% set stages = ['new', 'contacted', 'qualified', 'proposal_sent', 'funded'] %}
+                {% set stage_colors = {'new': 'bg-blue-500', 'contacted': 'bg-yellow-500', 'qualified': 'bg-orange-500', 'proposal_sent': 'bg-purple-500', 'funded': 'bg-green-500'} %}
+                {% set total_leads = pipeline.values()|sum %}
+                {% for stage in stages %}
+                {% set count = pipeline.get(stage, 0) %}
+                <div class="flex items-center">
+                    <span class="w-32 text-sm font-medium text-gray-600">{{ stage|replace('_', ' ')|title }}</span>
+                    <div class="flex-1 mx-4">
+                        <div class="w-full bg-gray-200 rounded-full h-4">
+                            <div class="{{ stage_colors.get(stage, 'bg-gray-400') }} h-4 rounded-full transition-all duration-500"
+                                style="width: {{ (count / total_leads * 100) if total_leads else 0 }}%"></div>
+                        </div>
+                    </div>
+                    <span class="w-16 text-right text-sm font-semibold text-gray-900">{{ count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Signals by Source -->
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-database text-green-500 mr-2"></i>
+                    Signals by Source
+                </h3>
+            </div>
+            <div class="p-6">
+                {% if stats.by_source %}
+                <div class="space-y-4">
+                    {% for source, count in stats.by_source.items() %}
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-600">
+                            {{ (source.value if source.value is defined else source)|replace('_', ' ')|title }}
+                        </span>
+                        <div class="flex items-center gap-3">
+                            <div class="w-32 bg-gray-200 rounded-full h-2">
+                                <div class="bg-green-500 h-2 rounded-full" style="width: {{ (count / stats.total * 100) if stats.total else 0 }}%"></div>
+                            </div>
+                            <span class="text-sm font-semibold text-gray-900 w-8 text-right">{{ count }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-center py-8">No data available</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Signals by Type -->
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-tags text-purple-500 mr-2"></i>
+                    Signals by Type
+                </h3>
+            </div>
+            <div class="p-6">
+                {% if stats.by_type %}
+                <div class="space-y-3 max-h-64 overflow-y-auto">
+                    {% for signal_type, count in stats.by_type.items() %}
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-600">
+                            {{ (signal_type.value if signal_type.value is defined else signal_type)|replace('_', ' ')|title }}
+                        </span>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            {{ count }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-center py-8">No data available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Non-success statuses -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-chart-pie text-orange-500 mr-2"></i>
+                Lead Outcomes
+            </h3>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div class="text-2xl font-bold text-gray-900">{{ pipeline.get('declined', 0) }}</div>
+                    <div class="text-sm text-gray-500">Declined</div>
+                </div>
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div class="text-2xl font-bold text-gray-900">{{ pipeline.get('not_interested', 0) }}</div>
+                    <div class="text-sm text-gray-500">Not Interested</div>
+                </div>
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div class="text-2xl font-bold text-gray-900">{{ pipeline.get('dead', 0) }}</div>
+                    <div class="text-sm text-gray-500">Dead</div>
+                </div>
+                <div class="text-center p-4 bg-green-50 rounded-lg">
+                    <div class="text-2xl font-bold text-green-600">{{ pipeline.get('funded', 0) }}</div>
+                    <div class="text-sm text-green-700">Funded</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

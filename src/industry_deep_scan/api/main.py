@@ -6,15 +6,18 @@ Main API application with routes for leads, signals, scans, and analytics.
 """
 
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from pathlib import Path
 
 from industry_deep_scan.config import get_settings
+from industry_deep_scan.dashboard import router as dashboard_router
 from industry_deep_scan.database import (
     BusinessRepository,
     SignalRepository,
@@ -64,6 +67,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Include dashboard router
+    app.include_router(dashboard_router)
 
     return app
 
@@ -628,6 +634,443 @@ async def export_leads(
                 "count": len(businesses),
                 "exported_at": datetime.utcnow().isoformat(),
             }
+
+
+# === Contact Tracking Routes ===
+
+
+class ContactAttemptRequest(BaseModel):
+    """Request to log a contact attempt."""
+
+    contact_method: str  # "phone", "email", "visit", etc.
+    outcome: str  # "connected", "voicemail", "no_answer", "bounced", etc.
+    notes: Optional[str] = None
+    contacted_by: Optional[str] = None
+
+
+class ContactAttemptResponse(BaseModel):
+    """Contact attempt response."""
+
+    id: str
+    lead_id: str
+    contact_method: str
+    outcome: str
+    notes: Optional[str] = None
+    contacted_by: Optional[str] = None
+    created_at: str
+
+
+@app.post("/leads/{lead_id}/contacts", response_model=ContactAttemptResponse)
+async def log_contact_attempt(
+    lead_id: str,
+    request: ContactAttemptRequest,
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Log a contact attempt for a lead.
+
+    Use this to track outreach attempts and outcomes.
+    """
+    async with get_session() as session:
+        business_repo = BusinessRepository(session)
+
+        business = await business_repo.get_by_id(lead_id)
+        if not business:
+            raise HTTPException(status_code=404, detail="Lead not found")
+
+        # Create contact attempt record
+        from industry_deep_scan.models import ContactAttempt
+        import uuid
+
+        contact = ContactAttempt(
+            id=str(uuid.uuid4()),
+            business_id=lead_id,
+            contact_method=request.contact_method,
+            outcome=request.outcome,
+            notes=request.notes,
+            contacted_by=request.contacted_by,
+            created_at=datetime.utcnow(),
+        )
+
+        session.add(contact)
+
+        # Update lead status if first successful contact
+        if request.outcome == "connected" and business.status == LeadStatus.NEW:
+            business.status = LeadStatus.CONTACTED
+            business.last_contacted = datetime.utcnow()
+
+        return ContactAttemptResponse(
+            id=contact.id,
+            lead_id=lead_id,
+            contact_method=request.contact_method,
+            outcome=request.outcome,
+            notes=request.notes,
+            contacted_by=request.contacted_by,
+            created_at=contact.created_at.isoformat(),
+        )
+
+
+@app.get("/leads/{lead_id}/contacts")
+async def get_contact_history(
+    lead_id: str,
+    api_key: str = Depends(verify_api_key),
+):
+    """Get contact attempt history for a lead."""
+    async with get_session() as session:
+        business_repo = BusinessRepository(session)
+
+        business = await business_repo.get_by_id(lead_id)
+        if not business:
+            raise HTTPException(status_code=404, detail="Lead not found")
+
+        # Get contact history
+        from sqlalchemy import select
+        from industry_deep_scan.models import ContactAttempt
+
+        result = await session.execute(
+            select(ContactAttempt)
+            .where(ContactAttempt.business_id == lead_id)
+            .order_by(ContactAttempt.created_at.desc())
+        )
+        contacts = result.scalars().all()
+
+        return {
+            "lead_id": lead_id,
+            "contacts": [
+                {
+                    "id": c.id,
+                    "method": c.contact_method,
+                    "outcome": c.outcome,
+                    "notes": c.notes,
+                    "contacted_by": c.contacted_by,
+                    "created_at": c.created_at.isoformat(),
+                }
+                for c in contacts
+            ],
+            "total_attempts": len(contacts),
+        }
+
+
+# === Bulk Operations Routes ===
+
+
+class BulkStatusUpdate(BaseModel):
+    """Request for bulk status update."""
+
+    lead_ids: list[str]
+    status: str
+    assigned_to: Optional[str] = None
+
+
+@app.post("/leads/bulk/status")
+async def bulk_update_status(
+    request: BulkStatusUpdate,
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Update status for multiple leads at once.
+
+    Useful for batch processing after campaigns.
+    """
+    async with get_session() as session:
+        business_repo = BusinessRepository(session)
+
+        updated = 0
+        errors = []
+
+        for lead_id in request.lead_ids:
+            try:
+                business = await business_repo.get_by_id(lead_id)
+                if business:
+                    business.status = LeadStatus(request.status)
+                    if request.assigned_to:
+                        business.assigned_to = request.assigned_to
+                    business.updated_at = datetime.utcnow()
+                    updated += 1
+                else:
+                    errors.append({"id": lead_id, "error": "Not found"})
+            except Exception as e:
+                errors.append({"id": lead_id, "error": str(e)})
+
+        return {
+            "updated": updated,
+            "errors": errors,
+            "total": len(request.lead_ids),
+        }
+
+
+class BulkBlacklistRequest(BaseModel):
+    """Request to blacklist businesses."""
+
+    lead_ids: list[str]
+    reason: Optional[str] = None
+
+
+@app.post("/leads/bulk/blacklist")
+async def bulk_blacklist(
+    request: BulkBlacklistRequest,
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Blacklist multiple leads.
+
+    Blacklisted leads won't appear in searches or exports.
+    """
+    async with get_session() as session:
+        business_repo = BusinessRepository(session)
+
+        blacklisted = 0
+        for lead_id in request.lead_ids:
+            business = await business_repo.get_by_id(lead_id)
+            if business:
+                business.is_blacklisted = True
+                business.blacklist_reason = request.reason
+                business.updated_at = datetime.utcnow()
+                blacklisted += 1
+
+        return {
+            "blacklisted": blacklisted,
+            "total": len(request.lead_ids),
+        }
+
+
+# === Data Quality Routes ===
+
+
+@app.get("/data/quality")
+async def get_data_quality_stats(
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Get data quality statistics for the lead database.
+
+    Useful for monitoring data completeness.
+    """
+    async with get_session() as session:
+        from sqlalchemy import func, select
+        from industry_deep_scan.models import Business
+
+        # Total leads
+        total_result = await session.execute(select(func.count(Business.id)))
+        total = total_result.scalar() or 0
+
+        # Leads with phone
+        phone_result = await session.execute(
+            select(func.count(Business.id)).where(Business.phone.isnot(None))
+        )
+        with_phone = phone_result.scalar() or 0
+
+        # Leads with email
+        email_result = await session.execute(
+            select(func.count(Business.id)).where(Business.email.isnot(None))
+        )
+        with_email = email_result.scalar() or 0
+
+        # Leads with website
+        website_result = await session.execute(
+            select(func.count(Business.id)).where(Business.website.isnot(None))
+        )
+        with_website = website_result.scalar() or 0
+
+        # Leads with industry
+        industry_result = await session.execute(
+            select(func.count(Business.id)).where(Business.industry.isnot(None))
+        )
+        with_industry = industry_result.scalar() or 0
+
+        # Leads with revenue estimate
+        revenue_result = await session.execute(
+            select(func.count(Business.id)).where(Business.annual_revenue_estimate.isnot(None))
+        )
+        with_revenue = revenue_result.scalar() or 0
+
+        # Average score
+        avg_score_result = await session.execute(
+            select(func.avg(Business.lead_score))
+        )
+        avg_score = avg_score_result.scalar() or 0
+
+        return {
+            "total_leads": total,
+            "completeness": {
+                "phone": {"count": with_phone, "percent": (with_phone / total * 100) if total else 0},
+                "email": {"count": with_email, "percent": (with_email / total * 100) if total else 0},
+                "website": {"count": with_website, "percent": (with_website / total * 100) if total else 0},
+                "industry": {"count": with_industry, "percent": (with_industry / total * 100) if total else 0},
+                "revenue_estimate": {"count": with_revenue, "percent": (with_revenue / total * 100) if total else 0},
+            },
+            "average_score": round(avg_score, 2),
+            "checked_at": datetime.utcnow().isoformat(),
+        }
+
+
+@app.get("/data/duplicates")
+async def find_duplicate_leads(
+    threshold: float = Query(default=0.85, ge=0.5, le=1.0),
+    limit: int = Query(default=50, ge=1, le=200),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Find potential duplicate leads in the database.
+
+    Uses fuzzy matching on business name, phone, and address.
+    """
+    async with get_session() as session:
+        business_repo = BusinessRepository(session)
+
+        # Get recent leads to check
+        leads = await business_repo.get_leads(limit=500)
+
+        from industry_deep_scan.utils import is_duplicate_business
+
+        duplicates = []
+        checked = set()
+
+        for i, lead1 in enumerate(leads):
+            for j, lead2 in enumerate(leads[i + 1:], i + 1):
+                pair_key = tuple(sorted([lead1.id, lead2.id]))
+                if pair_key in checked:
+                    continue
+                checked.add(pair_key)
+
+                is_dup, confidence = is_duplicate_business(
+                    name1=lead1.name,
+                    name2=lead2.name,
+                    phone1=lead1.phone,
+                    phone2=lead2.phone,
+                    address1=lead1.address,
+                    address2=lead2.address,
+                    city1=lead1.city,
+                    city2=lead2.city,
+                    threshold=threshold,
+                )
+
+                if is_dup:
+                    duplicates.append({
+                        "lead1": {
+                            "id": lead1.id,
+                            "name": lead1.name,
+                            "phone": lead1.phone,
+                            "city": lead1.city,
+                        },
+                        "lead2": {
+                            "id": lead2.id,
+                            "name": lead2.name,
+                            "phone": lead2.phone,
+                            "city": lead2.city,
+                        },
+                        "confidence": round(confidence, 2),
+                    })
+
+                if len(duplicates) >= limit:
+                    break
+            if len(duplicates) >= limit:
+                break
+
+        return {
+            "duplicates": duplicates,
+            "count": len(duplicates),
+            "threshold": threshold,
+            "checked_pairs": len(checked),
+        }
+
+
+# === Pipeline Analytics Routes ===
+
+
+@app.get("/analytics/pipeline")
+async def get_pipeline_stats(
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Get detailed pipeline funnel statistics.
+    """
+    async with get_session() as session:
+        from sqlalchemy import func, select
+        from industry_deep_scan.models import Business
+
+        pipeline = {}
+        total = 0
+
+        for status in LeadStatus:
+            result = await session.execute(
+                select(func.count(Business.id)).where(Business.status == status)
+            )
+            count = result.scalar() or 0
+            pipeline[status.value] = count
+            total += count
+
+        # Calculate conversion rates
+        conversions = {}
+        stages = ["new", "contacted", "qualified", "proposal_sent", "funded"]
+
+        for i in range(len(stages) - 1):
+            current = pipeline.get(stages[i], 0)
+            next_stage = pipeline.get(stages[i + 1], 0)
+            rate = (next_stage / current * 100) if current > 0 else 0
+            conversions[f"{stages[i]}_to_{stages[i + 1]}"] = round(rate, 1)
+
+        # Overall conversion
+        overall = (pipeline.get("funded", 0) / pipeline.get("new", 1)) * 100
+
+        return {
+            "pipeline": pipeline,
+            "total_leads": total,
+            "conversions": conversions,
+            "overall_conversion_rate": round(overall, 2),
+        }
+
+
+@app.get("/analytics/velocity")
+async def get_pipeline_velocity(
+    days: int = Query(default=30, ge=7, le=90),
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Get pipeline velocity metrics - how fast leads move through stages.
+    """
+    async with get_session() as session:
+        from sqlalchemy import func, select
+        from industry_deep_scan.models import Business
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+
+        # Get leads that have moved through pipeline
+        result = await session.execute(
+            select(Business).where(
+                Business.status.in_([LeadStatus.QUALIFIED, LeadStatus.PROPOSAL_SENT, LeadStatus.FUNDED]),
+                Business.created_at >= cutoff,
+            )
+        )
+        leads = result.scalars().all()
+
+        if not leads:
+            return {
+                "average_days_to_contact": 0,
+                "average_days_to_qualify": 0,
+                "average_days_to_close": 0,
+                "sample_size": 0,
+            }
+
+        # Calculate averages (using updated_at as proxy for stage transitions)
+        days_to_qualify = []
+        days_to_close = []
+
+        for lead in leads:
+            if lead.status in [LeadStatus.QUALIFIED, LeadStatus.PROPOSAL_SENT, LeadStatus.FUNDED]:
+                days_diff = (lead.updated_at - lead.created_at).days
+                days_to_qualify.append(days_diff)
+
+            if lead.status == LeadStatus.FUNDED:
+                days_diff = (lead.updated_at - lead.created_at).days
+                days_to_close.append(days_diff)
+
+        return {
+            "average_days_to_qualify": round(sum(days_to_qualify) / len(days_to_qualify), 1) if days_to_qualify else 0,
+            "average_days_to_close": round(sum(days_to_close) / len(days_to_close), 1) if days_to_close else 0,
+            "sample_size": len(leads),
+            "period_days": days,
+        }
 
 
 if __name__ == "__main__":

@@ -1,0 +1,73 @@
+<div class="flex h-16 shrink-0 items-center">
+    <span class="text-2xl font-bold text-white">
+        <i class="fas fa-radar mr-2"></i>DeepScan
+    </span>
+</div>
+<nav class="flex flex-1 flex-col">
+    <ul role="list" class="flex flex-1 flex-col gap-y-7">
+        <li>
+            <ul role="list" class="-mx-2 space-y-1">
+                <li>
+                    <a href="/dashboard/" class="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-indigo-200 hover:text-white hover:bg-indigo-700">
+                        <i class="fas fa-home text-indigo-200 group-hover:text-white w-6 text-center"></i>
+                        Dashboard
+                    </a>
+                </li>
+                <li>
+                    <a href="/dashboard/leads?priority=critical" class="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-indigo-200 hover:text-white hover:bg-indigo-700">
+                        <i class="fas fa-fire text-red-400 w-6 text-center"></i>
+                        Hot Leads
+                        <span class="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">!</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/dashboard/leads" class="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-indigo-200 hover:text-white hover:bg-indigo-700">
+                        <i class="fas fa-users text-indigo-200 group-hover:text-white w-6 text-center"></i>
+                        All Leads
+                    </a>
+                </li>
+                <li>
+                    <a href="/dashboard/signals" class="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-indigo-200 hover:text-white hover:bg-indigo-700">
+                        <i class="fas fa-signal text-indigo-200 group-hover:text-white w-6 text-center"></i>
+                        Signals
+                    </a>
+                </li>
+                <li>
+                    <a href="/dashboard/analytics" class="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-indigo-200 hover:text-white hover:bg-indigo-700">
+                        <i class="fas fa-chart-bar text-indigo-200 group-hover:text-white w-6 text-center"></i>
+                        Analytics
+                    </a>
+                </li>
+            </ul>
+        </li>
+        <li>
+            <div class="text-xs font-semibold leading-6 text-indigo-200">Quick Actions</div>
+            <ul role="list" class="-mx-2 mt-2 space-y-1">
+                <li>
+                    <a href="/docs" target="_blank" class="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-indigo-200 hover:text-white hover:bg-indigo-700">
+                        <i class="fas fa-code text-indigo-200 group-hover:text-white w-6 text-center"></i>
+                        API Docs
+                    </a>
+                </li>
+                <li>
+                    <a href="/export/leads?format=csv&min_score=5" class="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-indigo-200 hover:text-white hover:bg-indigo-700">
+                        <i class="fas fa-download text-indigo-200 group-hover:text-white w-6 text-center"></i>
+                        Export Leads
+                    </a>
+                </li>
+                <li>
+                    <a href="/dashboard/settings" class="group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-indigo-200 hover:text-white hover:bg-indigo-700">
+                        <i class="fas fa-cog text-indigo-200 group-hover:text-white w-6 text-center"></i>
+                        Settings
+                    </a>
+                </li>
+            </ul>
+        </li>
+        <li class="mt-auto">
+            <div class="group -mx-2 flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-indigo-200">
+                <i class="fas fa-circle text-green-400 w-6 text-center"></i>
+                System Online
+            </div>
+        </li>
+    </ul>
+</nav>

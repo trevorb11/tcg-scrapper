@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lead.name }} - Industry Deep Scan{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="md:flex md:items-center md:justify-between">
+        <div class="min-w-0 flex-1">
+            <nav class="flex mb-4" aria-label="Breadcrumb">
+                <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                    <li class="inline-flex items-center">
+                        <a href="/dashboard/leads" class="text-sm text-gray-500 hover:text-gray-700">
+                            <i class="fas fa-arrow-left mr-2"></i>Back to Leads
+                        </a>
+                    </li>
+                </ol>
+            </nav>
+            <div class="flex items-center">
+                <div class="flex-shrink-0 h-16 w-16 rounded-full flex items-center justify-center
+                    {% if lead.priority.value == 'critical' %}bg-red-100
+                    {% elif lead.priority.value == 'high' %}bg-orange-100
+                    {% else %}bg-indigo-100{% endif %}">
+                    <i class="fas fa-building text-2xl
+                        {% if lead.priority.value == 'critical' %}text-red-600
+                        {% elif lead.priority.value == 'high' %}text-orange-600
+                        {% else %}text-indigo-600{% endif %}"></i>
+                </div>
+                <div class="ml-4">
+                    <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl">
+                        {{ lead.name }}
+                    </h2>
+                    <div class="mt-1 flex items-center gap-2">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if lead.priority.value == 'critical' %}bg-red-100 text-red-800
+                            {% elif lead.priority.value == 'high' %}bg-orange-100 text-orange-800
+                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {{ lead.priority.value|upper }} PRIORITY
+                        </span>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {{ lead.status.value|replace('_', ' ')|title }}
+                        </span>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Score: {{ '%.1f'|format(lead.lead_score) }}/10
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-4 flex gap-3 md:ml-4 md:mt-0">
+            {% if lead.phone %}
+            <a href="tel:{{ lead.phone }}" class="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500">
+                <i class="fas fa-phone mr-2"></i>
+                Call Now
+            </a>
+            {% endif %}
+            {% if lead.website %}
+            <a href="{{ lead.website }}" target="_blank" class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                <i class="fas fa-external-link-alt mr-2"></i>
+                Website
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column: Business Info -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Contact Information -->
+            <div class="bg-white shadow rounded-lg">
+                <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                        <i class="fas fa-address-card text-indigo-500 mr-2"></i>
+                        Contact Information
+                    </h3>
+                </div>
+                <div class="px-4 py-5 sm:p-6">
+                    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Phone</dt>
+                            <dd class="mt-1 text-sm text-gray-900">
+                                {% if lead.phone %}
+                                <a href="tel:{{ lead.phone }}" class="text-indigo-600 hover:text-indigo-500">
+                                    <i class="fas fa-phone mr-1"></i>{{ lead.phone }}
+                                </a>
+                                {% else %}
+                                <span class="text-gray-400">Not available</span>
+                                {% endif %}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Email</dt>
+                            <dd class="mt-1 text-sm text-gray-900">
+                                {% if lead.email %}
+                                <a href="mailto:{{ lead.email }}" class="text-indigo-600 hover:text-indigo-500">
+                                    <i class="fas fa-envelope mr-1"></i>{{ lead.email }}
+                                </a>
+                                {% else %}
+                                <span class="text-gray-400">Not available</span>
+                                {% endif %}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Website</dt>
+                            <dd class="mt-1 text-sm text-gray-900">
+                                {% if lead.website %}
+                                <a href="{{ lead.website }}" target="_blank" class="text-indigo-600 hover:text-indigo-500">
+                                    <i class="fas fa-globe mr-1"></i>{{ lead.website[:40] }}{% if lead.website|length > 40 %}...{% endif %}
+                                </a>
+                                {% else %}
+                                <span class="text-gray-400">Not available</span>
+                                {% endif %}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Location</dt>
+                            <dd class="mt-1 text-sm text-gray-900">
+                                {% if lead.address %}{{ lead.address }}<br>{% endif %}
+                                {{ lead.city or '' }}{% if lead.city and lead.state %}, {% endif %}{{ lead.state or '' }} {{ lead.zip_code or '' }}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Industry</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ lead.industry or 'Unknown' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Year Established</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ lead.year_established or 'Unknown' }}</dd>
+                        </div>
+                        {% if lead.employee_count %}
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Employees</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ lead.employee_count }}</dd>
+                        </div>
+                        {% endif %}
+                        {% if lead.annual_revenue_estimate %}
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Est. Revenue</dt>
+                            <dd class="mt-1 text-sm text-gray-900">${{ '{:,.0f}'.format(lead.annual_revenue_estimate) }}</dd>
+                        </div>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Signals Timeline -->
+            <div class="bg-white shadow rounded-lg">
+                <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                        <i class="fas fa-signal text-yellow-500 mr-2"></i>
+                        Detected Signals ({{ signals|length }})
+                    </h3>
+                </div>
+                <div class="flow-root px-4 py-5 sm:p-6">
+                    <ul role="list" class="-mb-8">
+                        {% for signal in signals %}
+                        <li>
+                            <div class="relative pb-8">
+                                {% if not loop.last %}
+                                <span class="absolute left-4 top-4 -ml-px h-full w-0.5 bg-gray-200"></span>
+                                {% endif %}
+                                <div class="relative flex space-x-3">
+                                    <div>
+                                        <span class="h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white
+                                            {% if signal.priority.value == 'critical' %}bg-red-500
+                                            {% elif signal.priority.value == 'high' %}bg-orange-500
+                                            {% elif signal.priority.value == 'medium' %}bg-yellow-500
+                                            {% else %}bg-gray-400{% endif %}">
+                                            <i class="fas fa-bolt text-white text-xs"></i>
+                                        </span>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm font-medium text-gray-900">
+                                            {{ signal.title }}
+                                        </div>
+                                        <p class="mt-1 text-sm text-gray-500">
+                                            <span class="font-medium">{{ signal.signal_type.value|replace('_', ' ')|title }}</span>
+                                            via {{ signal.source_type.value|replace('_', ' ')|title }}
+                                        </p>
+                                        {% if signal.description %}
+                                        <p class="mt-2 text-sm text-gray-600">
+                                            {{ signal.description[:200] }}{% if signal.description|length > 200 %}...{% endif %}
+                                        </p>
+                                        {% endif %}
+                                        {% if signal.recommended_approach %}
+                                        <div class="mt-3 p-3 bg-green-50 rounded-md border border-green-200">
+                                            <p class="text-sm font-medium text-green-800">
+                                                <i class="fas fa-lightbulb mr-1"></i>Recommended Approach:
+                                            </p>
+                                            <p class="mt-1 text-sm text-green-700">
+                                                {{ signal.recommended_approach }}
+                                            </p>
+                                        </div>
+                                        {% endif %}
+                                        {% if signal.source_url %}
+                                        <div class="mt-2">
+                                            <a href="{{ signal.source_url }}" target="_blank" class="text-xs text-indigo-600 hover:text-indigo-500">
+                                                <i class="fas fa-external-link-alt mr-1"></i>View Source
+                                            </a>
+                                        </div>
+                                        {% endif %}
+                                        <p class="mt-2 text-xs text-gray-400">
+                                            {{ signal.created_at.strftime('%B %d, %Y at %I:%M %p') }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                        {% else %}
+                        <li class="text-center py-6 text-gray-500">
+                            <i class="fas fa-inbox text-3xl text-gray-300 mb-2"></i>
+                            <p>No signals recorded for this lead.</p>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Actions & Notes -->
+        <div class="space-y-6">
+            <!-- Quick Actions -->
+            <div class="bg-white shadow rounded-lg">
+                <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                        <i class="fas fa-tasks text-indigo-500 mr-2"></i>
+                        Update Lead
+                    </h3>
+                </div>
+                <form action="/dashboard/leads/{{ lead.id }}/update" method="POST" class="px-4 py-5 sm:p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select name="status" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            {% for status in statuses %}
+                            <option value="{{ status }}" {% if lead.status.value == status %}selected{% endif %}>
+                                {{ status|replace('_', ' ')|title }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
+                        <input type="text" name="assigned_to" value="{{ lead.assigned_to or '' }}"
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            placeholder="Sales rep name">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                        <textarea name="notes" rows="4"
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            placeholder="Add notes about this lead...">{{ lead.notes or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="w-full inline-flex justify-center items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                        <i class="fas fa-save mr-2"></i>
+                        Save Changes
+                    </button>
+                </form>
+            </div>
+
+            <!-- Score Breakdown -->
+            <div class="bg-white shadow rounded-lg">
+                <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                        <i class="fas fa-chart-line text-green-500 mr-2"></i>
+                        Score Details
+                    </h3>
+                </div>
+                <div class="px-4 py-5 sm:p-6">
+                    <div class="text-center mb-4">
+                        <span class="text-5xl font-bold
+                            {% if lead.lead_score >= 9 %}text-red-600
+                            {% elif lead.lead_score >= 7 %}text-orange-600
+                            {% elif lead.lead_score >= 5 %}text-yellow-600
+                            {% else %}text-gray-600{% endif %}">
+                            {{ '%.1f'|format(lead.lead_score) }}
+                        </span>
+                        <span class="text-2xl text-gray-400">/10</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3">
+                        <div class="h-3 rounded-full
+                            {% if lead.lead_score >= 9 %}bg-red-600
+                            {% elif lead.lead_score >= 7 %}bg-orange-500
+                            {% elif lead.lead_score >= 5 %}bg-yellow-500
+                            {% else %}bg-gray-400{% endif %}"
+                            style="width: {{ lead.lead_score * 10 }}%"></div>
+                    </div>
+                    <div class="mt-4 space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Priority</span>
+                            <span class="font-medium">{{ lead.priority.value|title }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Signals</span>
+                            <span class="font-medium">{{ signals|length }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">Created</span>
+                            <span class="font-medium">{{ lead.created_at.strftime('%b %d, %Y') }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- External Links -->
+            <div class="bg-white shadow rounded-lg">
+                <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                        <i class="fas fa-link text-blue-500 mr-2"></i>
+                        External Links
+                    </h3>
+                </div>
+                <div class="px-4 py-5 sm:p-6 space-y-3">
+                    <a href="https://www.google.com/search?q={{ lead.name|urlencode }}+{{ lead.city|urlencode if lead.city else '' }}" target="_blank"
+                        class="flex items-center text-sm text-gray-600 hover:text-indigo-600">
+                        <i class="fab fa-google w-6"></i>
+                        Search on Google
+                    </a>
+                    <a href="https://www.linkedin.com/search/results/companies/?keywords={{ lead.name|urlencode }}" target="_blank"
+                        class="flex items-center text-sm text-gray-600 hover:text-indigo-600">
+                        <i class="fab fa-linkedin w-6"></i>
+                        Find on LinkedIn
+                    </a>
+                    <a href="https://www.yelp.com/search?find_desc={{ lead.name|urlencode }}&find_loc={{ lead.city|urlencode if lead.city else '' }}" target="_blank"
+                        class="flex items-center text-sm text-gray-600 hover:text-indigo-600">
+                        <i class="fab fa-yelp w-6"></i>
+                        View on Yelp
+                    </a>
+                    <a href="https://www.bbb.org/search?find_text={{ lead.name|urlencode }}&find_loc={{ lead.state|urlencode if lead.state else '' }}" target="_blank"
+                        class="flex items-center text-sm text-gray-600 hover:text-indigo-600">
+                        <i class="fas fa-shield-alt w-6"></i>
+                        Check BBB
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

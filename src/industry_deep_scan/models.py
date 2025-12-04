@@ -202,8 +202,10 @@ class Business(Base):
 
     # Flags
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_blacklisted: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_blacklisted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    blacklist_reason: Mapped[Optional[str]] = mapped_column(String(255))
     has_existing_mca: Mapped[Optional[bool]] = mapped_column(Boolean)
+    last_contacted: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     # Relationships
     signals: Mapped[list["Signal"]] = relationship(
@@ -218,6 +220,10 @@ class Business(Base):
         Index("ix_business_location", "state", "city"),
         Index("ix_business_scoring", "lead_score", "priority"),
         Index("ix_business_status", "status", "next_follow_up"),
+        Index("ix_business_hot_leads", "is_blacklisted", "priority", "lead_score"),
+        Index("ix_business_industry_state", "industry", "state"),
+        Index("ix_business_created", "created_at"),
+        Index("ix_business_assigned", "assigned_to", "status"),
     )
 
     def __repr__(self) -> str:
@@ -275,6 +281,9 @@ class Signal(Base):
     __table_args__ = (
         Index("ix_signal_business_type", "business_id", "signal_type"),
         Index("ix_signal_priority_date", "priority", "created_at"),
+        Index("ix_signal_source_date", "source_type", "created_at"),
+        Index("ix_signal_category", "category", "priority"),
+        Index("ix_signal_notified", "is_notified", "priority"),
         UniqueConstraint("business_id", "content_hash", name="uq_signal_content"),
     )
 
