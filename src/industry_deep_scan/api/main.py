@@ -18,6 +18,7 @@ from pathlib import Path
 
 from industry_deep_scan.config import get_settings
 from industry_deep_scan.dashboard import router as dashboard_router
+from industry_deep_scan.api.automation_routes import router as automation_router
 from industry_deep_scan.database import (
     BusinessRepository,
     SignalRepository,
@@ -68,8 +69,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Include dashboard router
+    # Include routers
     app.include_router(dashboard_router)
+    app.include_router(automation_router, prefix="/api/v1")
 
     return app
 

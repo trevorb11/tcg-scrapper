@@ -397,3 +397,230 @@ class Blacklist(Base):
     # Reason
     reason: Mapped[str] = mapped_column(String(255))
     added_by: Mapped[Optional[str]] = mapped_column(String(100))
+
+
+class DealStage(str, Enum):
+    """Deal pipeline stages."""
+
+    LEAD = "lead"
+    QUALIFIED = "qualified"
+    PROPOSAL_SENT = "proposal_sent"
+    NEGOTIATING = "negotiating"
+    UNDERWRITING = "underwriting"
+    APPROVED = "approved"
+    FUNDED = "funded"
+    DECLINED = "declined"
+    LOST = "lost"
+
+
+class DealPipeline(Base):
+    """
+    Deal pipeline tracking.
+    Tracks deals through funding stages with timing and amounts.
+    """
+
+    __tablename__ = "deal_pipeline"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    # Business relationship
+    business_id: Mapped[str] = mapped_column(String(36), ForeignKey("businesses.id"), index=True)
+
+    # Deal details
+    stage: Mapped[DealStage] = mapped_column(SQLEnum(DealStage), default=DealStage.LEAD, index=True)
+    estimated_deal_size: Mapped[float] = mapped_column(Float, default=0)
+    actual_deal_amount: Mapped[Optional[float]] = mapped_column(Float)
+    probability_percentage: Mapped[int] = mapped_column(Integer, default=10)
+
+    # Timing
+    stage_entered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    days_in_current_stage: Mapped[int] = mapped_column(Integer, default=0)
+    expected_close_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Agent tracking
+    assigned_agent_id: Mapped[Optional[str]] = mapped_column(String(100))
+    assigned_agent_name: Mapped[Optional[str]] = mapped_column(String(255))
+
+    # Outcome tracking
+    deal_won: Mapped[Optional[bool]] = mapped_column(Boolean)
+    lost_reason: Mapped[Optional[str]] = mapped_column(String(500))
+    lost_to_competitor: Mapped[Optional[str]] = mapped_column(String(255))
+    closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Source attribution
+    primary_signal_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("signals.id"))
+    source_campaign: Mapped[Optional[str]] = mapped_column(String(255))
+
+    # Notes
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("ix_deal_pipeline_stage", "stage", "created_at"),
+        Index("ix_deal_pipeline_agent", "assigned_agent_id", "stage"),
+    )
+
+
+class FundingRecord(Base):
+    """
+    Record of completed fundings.
+    Tracks revenue attribution and deal details.
+    """
+
+    __tablename__ = "funding_records"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    business_id: Mapped[str] = mapped_column(String(36), ForeignKey("businesses.id"), index=True)
+    deal_pipeline_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("deal_pipeline.id"))
+
+    # Funding details
+    funding_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    factor_rate: Mapped[float] = mapped_column(Float, default=1.0)  # e.g., 1.25 = 25% fee
+    total_repayment: Mapped[float] = mapped_column(Float, default=0)
+    term_months: Mapped[Optional[int]] = mapped_column(Integer)
+    payment_frequency: Mapped[Optional[str]] = mapped_column(String(50))  # daily, weekly, monthly
+
+    # Dates
+    funded_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    first_payment_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    maturity_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Agent/broker
+    broker_who_closed: Mapped[str] = mapped_column(String(255))
+    broker_commission: Mapped[Optional[float]] = mapped_column(Float)
+    broker_commission_percent: Mapped[Optional[float]] = mapped_column(Float)
+
+    # Funder info
+    funder_name: Mapped[Optional[str]] = mapped_column(String(255))
+    funder_deal_id: Mapped[Optional[str]] = mapped_column(String(100))
+
+    # Attribution
+    source_signal_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("signals.id"))
+    source_signal_type: Mapped[Optional[str]] = mapped_column(String(50))
+    source_type: Mapped[Optional[str]] = mapped_column(String(50))
+
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(50), default="active")  # active, paid_off, defaulted
+
+    # Notes
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("ix_funding_record_date", "funded_date"),
+        Index("ix_funding_record_broker", "broker_who_closed", "funded_date"),
+    )
+
+
+class SequenceEnrollment(Base):
+    """
+    Tracks lead enrollment in follow-up sequences.
+    """
+
+    __tablename__ = "sequence_enrollments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Business
+    business_id: Mapped[str] = mapped_column(String(36), ForeignKey("businesses.id"), index=True)
+
+    # Sequence tracking
+    sequence_id: Mapped[str] = mapped_column(String(36), index=True)
+    sequence_name: Mapped[str] = mapped_column(String(255))
+    current_step: Mapped[int] = mapped_column(Integer, default=1)
+    total_steps: Mapped[int] = mapped_column(Integer, default=1)
+
+    # Status
+    status: Mapped[str] = mapped_column(String(50), default="active")  # active, completed, paused, stopped
+
+    # Timing
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    next_action_at: Mapped[Optional[datetime]] = mapped_column(DateTime, index=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Outcomes
+    step_outcomes: Mapped[Optional[str]] = mapped_column(Text)  # JSON of step -> outcome
+    final_outcome: Mapped[Optional[str]] = mapped_column(String(100))
+
+
+class EscalationLog(Base):
+    """
+    Log of lead escalations.
+    """
+
+    __tablename__ = "escalation_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+    # Business
+    business_id: Mapped[str] = mapped_column(String(36), ForeignKey("businesses.id"), index=True)
+
+    # Escalation details
+    rule_id: Mapped[str] = mapped_column(String(36))
+    rule_name: Mapped[str] = mapped_column(String(255))
+    trigger: Mapped[str] = mapped_column(String(100))
+    action_taken: Mapped[str] = mapped_column(String(100))
+
+    # Target
+    escalated_to: Mapped[str] = mapped_column(String(255))
+    escalated_from: Mapped[Optional[str]] = mapped_column(String(255))
+
+    # Reason
+    reason: Mapped[str] = mapped_column(Text)
+
+    # Resolution
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    resolution_notes: Mapped[Optional[str]] = mapped_column(Text)
+    resolved_by: Mapped[Optional[str]] = mapped_column(String(255))
+
+
+class AgentPerformance(Base):
+    """
+    Agent performance metrics tracking.
+    """
+
+    __tablename__ = "agent_performance"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    agent_id: Mapped[str] = mapped_column(String(100), index=True)
+    agent_name: Mapped[str] = mapped_column(String(255))
+
+    # Period
+    period_start: Mapped[datetime] = mapped_column(DateTime, index=True)
+    period_end: Mapped[datetime] = mapped_column(DateTime)
+    period_type: Mapped[str] = mapped_column(String(20))  # daily, weekly, monthly
+
+    # Activity metrics
+    leads_assigned: Mapped[int] = mapped_column(Integer, default=0)
+    leads_contacted: Mapped[int] = mapped_column(Integer, default=0)
+    leads_qualified: Mapped[int] = mapped_column(Integer, default=0)
+    proposals_sent: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Outcome metrics
+    deals_closed: Mapped[int] = mapped_column(Integer, default=0)
+    deals_lost: Mapped[int] = mapped_column(Integer, default=0)
+    total_funded_amount: Mapped[float] = mapped_column(Float, default=0)
+    total_commission: Mapped[float] = mapped_column(Float, default=0)
+
+    # Efficiency metrics
+    avg_cycle_days: Mapped[Optional[float]] = mapped_column(Float)
+    close_rate: Mapped[Optional[float]] = mapped_column(Float)
+    avg_deal_size: Mapped[Optional[float]] = mapped_column(Float)
+
+    # Contact metrics
+    total_calls: Mapped[int] = mapped_column(Integer, default=0)
+    total_emails: Mapped[int] = mapped_column(Integer, default=0)
+    connect_rate: Mapped[Optional[float]] = mapped_column(Float)
+
+    __table_args__ = (
+        Index("ix_agent_performance_period", "agent_id", "period_start"),
+    )
+
