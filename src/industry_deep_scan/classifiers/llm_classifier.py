@@ -193,21 +193,41 @@ Respond ONLY with the JSON object, no other text."""
         self._daily_cost = 0.0
         self._request_count = 0
         self._last_request_time = 0.0
+        self._use_ai_integrations = False
 
     async def setup(self) -> None:
         """Initialize LLM client."""
+        import os
+        
         if self.settings.llm.provider == "openai":
             from openai import AsyncOpenAI
 
-            self._client = AsyncOpenAI(
-                api_key=self.settings.llm.openai_api_key.get_secret_value()
-            )
+            # Use Replit AI Integrations if available (no API key required)
+            # the newest OpenAI model is "gpt-5" which was released August 7, 2025.
+            # do not change this unless explicitly requested by the user
+            ai_integrations_base_url = os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL")
+            ai_integrations_api_key = os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY")
+            
+            if ai_integrations_base_url and ai_integrations_api_key:
+                # Use Replit AI Integrations
+                self._client = AsyncOpenAI(
+                    api_key=ai_integrations_api_key,
+                    base_url=ai_integrations_base_url
+                )
+                self._use_ai_integrations = True
+            else:
+                # Fall back to user's own API key
+                self._client = AsyncOpenAI(
+                    api_key=self.settings.llm.openai_api_key.get_secret_value()
+                )
+                self._use_ai_integrations = False
         else:
             from anthropic import AsyncAnthropic
 
             self._client = AsyncAnthropic(
                 api_key=self.settings.llm.anthropic_api_key.get_secret_value()
             )
+            self._use_ai_integrations = False
 
     def _get_cache_key(self, signal: RawSignal) -> str:
         """Generate cache key for signal."""
@@ -237,23 +257,36 @@ Respond ONLY with the JSON object, no other text."""
     )
     async def _call_openai(self, prompt: str) -> tuple[str, int]:
         """Call OpenAI API."""
-        response = await self._client.chat.completions.create(
-            model=self.settings.llm.openai_model,
-            messages=[
+        # the newest OpenAI model is "gpt-5" which was released August 7, 2025.
+        # do not change this unless explicitly requested by the user
+        model = "gpt-5" if self._use_ai_integrations else self.settings.llm.openai_model
+        
+        # Build request parameters
+        request_params = {
+            "model": model,
+            "messages": [
                 {"role": "system", "content": self.SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.3,
-            max_tokens=self.settings.llm.max_tokens,
-            response_format={"type": "json_object"},
-        )
+            "response_format": {"type": "json_object"},
+        }
+        
+        # gpt-5 doesn't support temperature parameter, only add for older models
+        if not self._use_ai_integrations:
+            request_params["temperature"] = 0.3
+            request_params["max_tokens"] = self.settings.llm.max_tokens
+        else:
+            request_params["max_completion_tokens"] = self.settings.llm.max_tokens
+        
+        response = await self._client.chat.completions.create(**request_params)
 
         content = response.choices[0].message.content
         tokens = response.usage.total_tokens if response.usage else 0
 
-        # Estimate cost (GPT-4 Turbo pricing)
-        cost = (tokens / 1000) * 0.01
-        self._daily_cost += cost
+        # Cost tracking (Replit AI Integrations charges to credits)
+        if not self._use_ai_integrations:
+            cost = (tokens / 1000) * 0.01
+            self._daily_cost += cost
 
         return content, tokens
 

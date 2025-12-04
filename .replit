@@ -1,10 +1,11 @@
 modules = ["web", "python-3.11"]
 [agent]
 expertMode = true
+integrations = ["python_openai_ai_integrations:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["xorg.libxcb", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXfixes", "libxkbcommon", "alsa-lib", "nspr", "nss", "dbus", "atk", "at-spi2-atk", "cups", "pango", "cairo"]
+packages = ["alsa-lib", "at-spi2-atk", "atk", "cairo", "cargo", "cups", "dbus", "gitFull", "glibcLocales", "libiconv", "libxcrypt", "libxkbcommon", "nspr", "nss", "pango", "playwright-driver", "postgresql", "rustc", "xcodebuild", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXfixes", "xorg.libxcb", "zlib"]
 
 [userenv]
 
@@ -19,10 +20,10 @@ LLM_REQUESTS_PER_MINUTE = "60"
 LLM_MAX_COST_PER_DAY = "50.00"
 LLM_CACHE_RESPONSES = "true"
 SOURCE_YELP_ENABLED = "false"
-SOURCE_GOOGLE_NEWS_ENABLED = "false"
-SOURCE_BBB_ENABLED = "false"
-SOURCE_BIZBUYSELL_ENABLED = "false"
-SOURCE_BUSINESSBROKER_ENABLED = "false"
+SOURCE_GOOGLE_NEWS_ENABLED = "true"
+SOURCE_BBB_ENABLED = "true"
+SOURCE_BIZBUYSELL_ENABLED = "true"
+SOURCE_BUSINESSBROKER_ENABLED = "true"
 SOURCE_COURT_RECORDS_ENABLED = "false"
 SOURCE_EQUIPMENT_PERMITS_ENABLED = "false"
 SOURCE_SOS_FILINGS_ENABLED = "false"
