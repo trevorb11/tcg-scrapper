@@ -38,12 +38,26 @@ def run_async(coro):
 # === Scan Commands ===
 
 
+SOURCE_NAME_MAP = {
+    "news": "news",
+    "yelp": "yelp",
+    "bbb": "bbb",
+    "listings": "business_listings",
+    "business_listings": "business_listings",
+    "liens": "ucc_filings",
+    "ucc": "ucc_filings",
+    "permits": "equipment_permits",
+    "court": "court_records",
+    "linkedin": "linkedin",
+    "sos": "sos_filings",
+}
+
 @app.command()
 def scan(
     source: Optional[str] = typer.Option(
         None,
         "--source", "-s",
-        help="Source to scan (news, yelp, bbb, listings, liens, permits) or 'all'",
+        help="Source to scan (news, bbb, listings, liens, permits, court, sos) or 'all'",
     ),
     states: Optional[str] = typer.Option(
         None,
@@ -84,7 +98,8 @@ def scan(
             ) as progress:
                 if source and source != "all":
                     progress.add_task(f"Scanning {source}...", total=None)
-                    source_type = SourceType(source)
+                    mapped_source = SOURCE_NAME_MAP.get(source.lower(), source)
+                    source_type = SourceType(mapped_source)
                     result = await engine.run_source_scan(
                         source_type,
                         states=state_list,

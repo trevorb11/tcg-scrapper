@@ -7,11 +7,12 @@ Triggers: expansions, layoffs, contracts, financial trouble, permits, etc.
 """
 
 import asyncio
+import urllib.request
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from typing import AsyncIterator, Optional
 from urllib.parse import quote_plus
 
-import feedparser
 import structlog
 
 from industry_deep_scan.models import SignalCategory, SignalPriority, SignalType, SourceType
@@ -86,21 +87,25 @@ class GoogleNewsSource(BaseSource):
         """Build Google News search queries."""
         queries = []
 
-        # Default high-value industries if none specified
-        target_industries = industries or list(self.INDUSTRY_KEYWORDS.keys())
+        # Limit industries to top 5 for funding-relevant leads
+        top_industries = ["construction", "trucking", "restaurant", "medical", "manufacturing"]
+        target_industries = industries or top_industries
 
-        # Default states if none specified
-        target_states = states or self.settings.scraping.target_states[:10]
+        # Default states if none specified (limit to 5)
+        target_states = states or self.settings.scraping.target_states[:5]
 
-        for industry in target_industries:
+        # Focus on high-intent triggers for MCA/SBA/LOC/Equipment financing
+        high_intent_triggers = ["expansion", "hiring", "layoffs"]
+
+        for industry in target_industries[:5]:  # Limit to 5 industries
             industry_terms = self.INDUSTRY_KEYWORDS.get(industry, [industry])
 
-            for state in target_states:
-                # Combine industry + state + trigger keywords
-                for trigger in ["expansion", "hiring", "new contract", "layoffs", "struggling"]:
-                    for term in industry_terms[:2]:  # Limit to avoid too many queries
-                        query = f'"{term}" {state} {trigger}'
-                        queries.append(query)
+            for state in target_states[:5]:  # Limit to 5 states
+                for trigger in high_intent_triggers:
+                    # Use just one term per industry to reduce query count
+                    term = industry_terms[0]
+                    query = f'{term} {state} {trigger}'
+                    queries.append(query)
 
         return queries
 
@@ -154,6 +159,41 @@ class GoogleNewsSource(BaseSource):
 
         return None
 
+    async def _fetch_news(self, url: str) -> str:
+        """Fetch news RSS using urllib to avoid Nix sandbox path length issues."""
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/rss+xml, application/xml, text/xml'
+        }
+        req = urllib.request.Request(url, headers=headers)
+        
+        def do_fetch():
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return resp.read().decode()
+        
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, do_fetch)
+    
+    def _parse_rss_xml(self, xml_text: str) -> list[dict]:
+        """Parse RSS XML without feedparser (avoids temp file issues)."""
+        entries = []
+        try:
+            root = ET.fromstring(xml_text)
+            for item in root.findall('.//item'):
+                title = item.find('title')
+                link = item.find('link')
+                desc = item.find('description')
+                pub_date = item.find('pubDate')
+                entries.append({
+                    'title': title.text if title is not None else '',
+                    'link': link.text if link is not None else '',
+                    'summary': desc.text if desc is not None else '',
+                    'published': pub_date.text if pub_date is not None else ''
+                })
+        except Exception as e:
+            self.logger.warning("Error parsing RSS XML", error=str(e))
+        return entries
+
     async def scan(
         self,
         states: Optional[list[str]] = None,
@@ -172,25 +212,28 @@ class GoogleNewsSource(BaseSource):
             max_age_days: Only return news from this many days ago
         """
         queries = self._build_search_queries(states, industries)
-        cutoff_date = datetime.utcnow() - timedelta(days=max_age_days)
+        cutoff_date = datetime.utcnow().replace(tzinfo=None) - timedelta(days=max_age_days)
 
         self.logger.info("Starting Google News scan", query_count=len(queries))
 
         for query in queries:
             try:
-                # Google News RSS endpoint
-                encoded_query = quote_plus(query)
-                url = f"https://news.google.com/rss/search?q={encoded_query}&hl=en-US&gl=US&ceid=US:en"
+                # Google News RSS endpoint - use simple query without special encoding
+                # Keep query short to avoid Nix sandbox path length issues
+                simple_query = query.replace('"', '').replace(' ', '+')
+                url = f"https://news.google.com/rss/search?q={simple_query}&hl=en-US&gl=US&ceid=US:en"
 
-                html = await self.fetch(url)
-                feed = feedparser.parse(html)
+                html = await self._fetch_news(url)
+                entries = self._parse_rss_xml(html)
 
-                for entry in feed.entries:
+                for entry in entries:
                     try:
-                        # Parse date
+                        # Parse date - make timezone-naive for comparison
                         pub_date = self._parse_rss_date(entry.get("published", ""))
-                        if pub_date and pub_date < cutoff_date:
-                            continue
+                        if pub_date:
+                            pub_date = pub_date.replace(tzinfo=None)
+                            if pub_date < cutoff_date:
+                                continue
 
                         title = entry.get("title", "")
                         summary = entry.get("summary", "")
