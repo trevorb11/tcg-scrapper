@@ -1,0 +1,71 @@
+modules = ["web", "python-3.11"]
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"
+packages = ["xorg.libxcb", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXfixes", "libxkbcommon", "alsa-lib", "nspr", "nss", "dbus", "atk", "at-spi2-atk", "cups", "pango", "cairo"]
+
+[userenv]
+
+[userenv.shared]
+ENVIRONMENT = "development"
+LOG_LEVEL = "INFO"
+DB_DRIVER = "sqlite"
+DB_SQLITE_PATH = "data/deep_scan.db"
+LLM_PROVIDER = "openai"
+LLM_OPENAI_MODEL = "gpt-4-turbo-preview"
+LLM_REQUESTS_PER_MINUTE = "60"
+LLM_MAX_COST_PER_DAY = "50.00"
+LLM_CACHE_RESPONSES = "true"
+SOURCE_YELP_ENABLED = "false"
+SOURCE_GOOGLE_NEWS_ENABLED = "false"
+SOURCE_BBB_ENABLED = "false"
+SOURCE_BIZBUYSELL_ENABLED = "false"
+SOURCE_BUSINESSBROKER_ENABLED = "false"
+SOURCE_COURT_RECORDS_ENABLED = "false"
+SOURCE_EQUIPMENT_PERMITS_ENABLED = "false"
+SOURCE_SOS_FILINGS_ENABLED = "false"
+SOURCE_LINKEDIN_ENABLED = "false"
+SCRAPE_USE_PLAYWRIGHT = "true"
+SCRAPE_HEADLESS = "true"
+NOTIFY_SLACK_ENABLED = "false"
+NOTIFY_EMAIL_ENABLED = "false"
+NOTIFY_WEBHOOK_ENABLED = "false"
+NOTIFY_DAILY_DIGEST_ENABLED = "false"
+API_HOST = "0.0.0.0"
+API_PORT = "5000"
+API_DEBUG = "false"
+API_API_KEY_ENABLED = "false"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "deepscan serve --port 5000 --host 0.0.0.0"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 40481
+externalPort = 3000
