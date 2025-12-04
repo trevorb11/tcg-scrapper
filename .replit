@@ -67,6 +67,10 @@ outputType = "webview"
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 43911
+externalPort = 3000
+
 [deployment]
 deploymentTarget = "autoscale"
 run = ["deepscan", "serve", "--port", "5000", "--host", "0.0.0.0"]
