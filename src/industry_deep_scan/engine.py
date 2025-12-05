@@ -56,6 +56,7 @@ from industry_deep_scan.classifiers import (
     LeadScorer,
     LLMClassifier,
 )
+from industry_deep_scan.enrichment import ContactEnricher
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -72,10 +73,12 @@ class DeepScanEngine:
             await engine.run_full_scan()
     """
 
-    def __init__(self):
+    def __init__(self, enrich_contacts: bool = True):
         self.settings = settings
         self.classifier = LLMClassifier()
         self.scorer = LeadScorer()
+        self.enrich_contacts = enrich_contacts
+        self.enricher = ContactEnricher() if enrich_contacts else None
 
         # Initialize sources
         self.sources: dict[SourceType, BaseSource] = {}
@@ -203,6 +206,38 @@ class DeepScanEngine:
         Returns:
             Tuple of (business, signal)
         """
+        phone = raw_signal.business_phone
+        email = getattr(raw_signal, 'business_email', None)
+        address = raw_signal.business_address
+        website = raw_signal.business_website
+        
+        if self.enricher and raw_signal.business_name:
+            needs_enrichment = not phone or not email or not address or not website
+            if needs_enrichment:
+                try:
+                    enriched = await self.enricher.enrich(
+                        business_name=raw_signal.business_name,
+                        city=raw_signal.business_city,
+                        state=raw_signal.business_state,
+                        website=website,
+                        existing_phone=phone,
+                        existing_email=email,
+                        existing_address=address
+                    )
+                    phone = enriched.get("phone") or phone
+                    email = enriched.get("email") or email
+                    address = enriched.get("address") or address
+                    website = enriched.get("website") or website
+                    
+                    logger.debug(
+                        "Contact enrichment applied",
+                        business=raw_signal.business_name,
+                        has_phone=bool(phone),
+                        has_email=bool(email)
+                    )
+                except Exception as e:
+                    logger.warning("Contact enrichment failed", error=str(e))
+        
         async with get_session() as session:
             business_repo = BusinessRepository(session)
             signal_repo = SignalRepository(session)
@@ -212,9 +247,10 @@ class DeepScanEngine:
                 "name": raw_signal.business_name,
                 "city": raw_signal.business_city,
                 "state": raw_signal.business_state,
-                "address": raw_signal.business_address,
-                "phone": raw_signal.business_phone,
-                "website": raw_signal.business_website,
+                "address": address,
+                "phone": phone,
+                "email": email,
+                "website": website,
                 "industry": raw_signal.industry or (classification.industry_classification if classification else None),
                 "employee_count": raw_signal.employee_count,
                 "year_established": raw_signal.year_established,
