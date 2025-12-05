@@ -64,6 +64,15 @@ Preferred communication style: Simple, everyday language.
 
 **Rationale**: Holistic scoring helps brokers focus on highest-value opportunities. Configurable weights allow tuning based on performance data.
 
+### Contact Enrichment System
+- **Website Scraping**: Automatically extracts phone, email, and address from business websites
+- **Google Places API**: Optional integration for reliable contact data lookup (requires API key)
+- **Multi-Page Analysis**: Checks homepage plus /contact and /about pages for contact info
+- **Pattern Recognition**: Uses regex patterns to find phone numbers, emails, and addresses
+- **Automatic Integration**: Enrichment runs automatically during scan pipeline when contact info is missing
+
+**Rationale**: MCA brokers need contact information to reach prospects. Website scraping provides free contact enrichment. Google Places API is available as an optional upgrade for higher reliability.
+
 ### Notification System
 - **Multi-Channel**: Slack webhooks, SendGrid email, custom webhooks for CRM integration
 - **Priority-Based**: Critical/high-priority leads trigger immediate notifications
