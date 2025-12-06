@@ -12,7 +12,15 @@ from industry_deep_scan.sources.reviews import YelpSource, GoogleReviewsSource
 from industry_deep_scan.sources.linkedin import LinkedInSource
 from industry_deep_scan.sources.bbb import BBBSource
 from industry_deep_scan.sources.listings import BizBuySellSource, BusinessBrokerSource
-from industry_deep_scan.sources.court_records import CourtRecordsSource, UCCFilingsSource
+from industry_deep_scan.sources.court_records import CourtRecordsSource
+from industry_deep_scan.sources.ucc import (
+    UCCFilingsSource,
+    get_supported_states,
+    get_scrapable_states,
+    STATE_UCC_CONFIGS,
+    UCCScrapability,
+    ScrapingMethod,
+)
 from industry_deep_scan.sources.permits import EquipmentPermitSource, SOSFilingsSource
 
 __all__ = [
@@ -30,4 +38,10 @@ __all__ = [
     "UCCFilingsSource",
     "EquipmentPermitSource",
     "SOSFilingsSource",
+    # UCC helpers
+    "get_supported_states",
+    "get_scrapable_states",
+    "STATE_UCC_CONFIGS",
+    "UCCScrapability",
+    "ScrapingMethod",
 ]

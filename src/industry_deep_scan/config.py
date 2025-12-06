@@ -135,6 +135,9 @@ class SourceSettings(BaseSettings):
     # Secretary of State filings
     sos_filings_enabled: bool = True
 
+    # UCC filings scraping
+    ucc_filings_enabled: bool = True
+
 
 class NotificationSettings(BaseSettings):
     """Notification configuration."""
@@ -176,6 +179,7 @@ class SchedulerSettings(BaseSettings):
     liens_scan_interval: int = 720
     permits_scan_interval: int = 720
     listings_scan_interval: int = 60
+    ucc_filings_scan_interval: int = 720  # Every 12 hours
 
     # Full database refresh (hours)
     full_refresh_interval: int = 24
