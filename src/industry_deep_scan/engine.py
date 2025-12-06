@@ -107,6 +107,9 @@ class DeepScanEngine:
         if self.settings.sources.linkedin_enabled:
             self.sources[SourceType.LINKEDIN] = LinkedInSource()
 
+        if self.settings.sources.ucc_filings_enabled:
+            self.sources[SourceType.UCC_FILINGS] = UCCFilingsSource()
+
         logger.info("Initialized sources", count=len(self.sources))
 
     async def __aenter__(self):
